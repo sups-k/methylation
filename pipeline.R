@@ -67,7 +67,8 @@ chrY = meth$detP[chrY,]
 cutoffs = c(1,0.5,0.1,0.05,0.01,0.001,0.0001)
 
 # Calculating quantile values for males and females to find out how many Y chromosome
-# probes are undetected in both sexes after applying the respective p-value cut-off
+# probes are undetected in both sexes after applying the respective p-value cut-off.
+# For females, this number should be as high as possible and for males it should be very low
 tmp = sapply(cutoffs,function(t){ colSums(chrY>t,na.rm=TRUE) })
 males = apply(tmp[males  ,],2,quantile,prob=0.9)
 females = apply(tmp[females,],2,quantile,prob=0.1)
@@ -87,7 +88,7 @@ rm(list = c("meth", "males", "females", "chrY", "cutoffs", "tmp"))
 
 # Only select those intensities that are lesser than the cut-off
 detP <- detectionP.minfi(rgSet)
-keep <- rowSums(detP < 0.05) == ncol(rgSet) # where 0.05 is the selected p-value
+keep <- rowSums(detP < 0.001) == ncol(rgSet) # where 0.001 is the selected p-value
 mSetSw <- mSetSw[keep,]
 
 # Extract beta and M-values from the SWAN normalised data.
@@ -97,37 +98,41 @@ mSetSw <- mSetSw[keep,]
 # selection of 20000 CpGs to reduce computation time.
 mset_reduced <- mSetSw[sample(1:nrow(mSetSw), 20000),]
 meth <- getMeth(mset_reduced)
+# meth <- getMeth(mSetSw)
 unmeth <- getUnmeth(mset_reduced)
+# unmeth <- getUnmeth(mSetSw)
 Mval <- log2((meth + 100)/(unmeth + 100))
 beta <- getBeta(mset_reduced)
+# beta <- getBeta(mSetSw)
 dim(Mval)
 
 # Plot MDS (multi-dimensional scaling) of cancer and normal samples.
 # This is a good check to make sure samples cluster together according to their type.
 par(mfrow=c(1,1))
 plotMDS(Mval, labels=targets$Sample_Name, col=as.integer(factor(targets$Sample_Group)))
-legend("top",legend=c("Healthy","RA"),pch=16,cex=1.2,col=1:2)
+legend("bottom",legend=c("Healthy","RA"),pch=16,cex=1.2,col=1:2)
 
 # We test for differential methylation using the *limma* package which
 # employs an empirical Bayes framework based on Guassian model theory.
 # We need to set up the design matrix. The most straightforward is directly
 # from the targets file.
 
-# Since the limma model framework can handle any experimental design which
-# can be summarised by a design matrix, we can take into account the paired nature
-# of the data in the analysis.
-
-group <- factor(targets$Sample_Group,levels=c("Healthy","RA"))
-id <- factor(targets$Sample_Name)
-design <- model.matrix(~id + group)
-design
+# Create experimental design using limma
+design <- model.matrix(~targets$Sample_Group)
 
 # Now we can test for differential methylation using the lmFit and eBayes
 # functions from limma. As input data we use the matrix of M-values.
 fit.reduced <- lmFit(Mval,design)
-#### ERROR AFTER THIS STEP: ###############
-# Coefficients not estimable: groupRA 
-# Warning message:
-#  Partial NA coefficients for 20000 probe(s) 
-####################################
 fit.reduced <- eBayes(fit.reduced)
+
+summary(decideTests(fit.reduced))
+top<-topTable(fit.reduced,coef=2) # coef is the last column index in the decideTests table
+
+cpgs <- rownames(top)
+par(mfrow=c(1,1))
+for(i in 1:4){
+  stripchart(beta[rownames(beta)==cpgs[i],]~design[,2],method="jitter",
+             group.names=c("Healthy","RA"),pch=16,cex=1.5,col=c(4,2),ylab="Beta values",
+             vertical=TRUE,cex.axis=1.5,cex.lab=1.5)
+  title(cpgs[i],cex.main=1.5)
+}
