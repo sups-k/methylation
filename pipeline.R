@@ -60,7 +60,10 @@ if(is.null(males) | is.null(females)) stop('Please specify the column indices fo
 if(!'detP'%in%names(meth)) stop('detP component missing')
 
 # Creating table of Y chromosome probe intensities from the data
-chrY = meth$manifest[chr=='Y',index]
+chrY1 = meth$manifest[chr=='Y',index]
+probe <- meth$manifest$probe_id
+probe_position=which(probe=="cg13618458")
+chrY=chrY1[!chrY1 %in% probe_position]
 chrY = meth$detP[chrY,]
 
 # Some general p-value cut-offs used in methylation
