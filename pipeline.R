@@ -16,84 +16,78 @@ library(data.table)
 
 # Set directory containing all IDAT files and Sample Sheet
 baseDir <- "/Users/sups/Documents/R_Prog/COV/GSE42861"
-setwd(baseDir)
+# setwd(baseDir)
 
 # Read the Sample Sheet
 # DOES NOT REQUIRE IDAT FILES IN SENTRIX_ID FOLDERS
 targets <- read.metharray.sheet(baseDir)
 
-# Display all columns of Sample Sheet except the Sentrix ID, Sentrix Position, file path
-targets[,1:5]
+# Function to perform QC
+performQC <- function(mSet){
+  # Quality control plot uses the log median intensity in both the methylated (M)
+  # and unmethylated (U) channels. When plotting these two medians against each other,
+  # it has been observed that good samples cluster together, while failed samples
+  # tend to separate and have lower median intensities.
+  qc <- addQC(mSet, getQC(mSet)) # adding phenotype data
+  
+  minfi_meth <- getMeth(mSet) # get methylated intensities
+  minfi_unmeth <- getUnmeth(mSet) # get unmethylated intensities
+  # Shorten column names to include only sample names
+  colnames(minfi_meth) <- sub("\\_.*", "", colnames(minfi_meth))
+  colnames(minfi_unmeth) <- sub("\\_.*", "", colnames(minfi_unmeth))
+  
+  #### Save in PDF ####
+  pdf(file = "/Users/sups/Documents/R_Prog/COV/Boxplot_Intensities_Outliers.pdf", width = 10, height = 10)
+  boxplot(log(minfi_meth), las = 2, cex.axis = 0.8, main = "Methylated")
+  boxplot(log(minfi_unmeth), las = 2, cex.axis = 0.8, main = "Unmethylated")
+  plotQC(qc)
+  dev.off()
+}
 
-# Display Sentrix ID, Sentrix Position, file path
-targets[,6:8]
 
-##################################################################################
-## Calculate detection P values - adapted from ewastools
-# Author: Jonathan A. Heiss
 
-# Reading the files into object "meth" using ewastools
-# For this, all the files must be in the same folder, not separated as in minfi
-meth = read_idats(targets$Basename,quiet=TRUE)
+#### Step 1: Read the raw IDAT files #####
 
-# Calculate detection p-values for each locus
-meth = detectionP(meth)
-
-# Define number of males and females in the sample
-males =  which(targets$sex=="m")
-females =  which(targets$sex=="f")
-
-# Warnings defined in case sex or detP information is missing
-if(is.null(males) | is.null(females)) stop('Please specify the column indices for male and female subjects')
-if(!'detP'%in%names(meth)) stop('detP component missing')
-
-# Creating table of Y chromosome probe intensities from the data
-chrY1 = meth$manifest[chr=='Y',index]
-probe <- meth$manifest$probe_id
-probe_position=which(probe=="cg13618458")
-chrY=chrY1[!chrY1 %in% probe_position]
-chrY = meth$detP[chrY,]
-
-# Some general p-value cut-offs used in methylation
-cutoffs = c(1,0.5,0.1,0.05,0.01,0.001,0.0001)
-
-# Calculating quantile values for males and females to find out how many Y chromosome
-# probes are undetected in both sexes after applying the respective p-value cut-off.
-# For females, this number should be as high as possible and for males it should be very low
-tmp = sapply(cutoffs,function(t){ colSums(chrY>t,na.rm=TRUE) })
-males = apply(tmp[males  ,],2,quantile,prob=0.9)
-females = apply(tmp[females,],2,quantile,prob=0.1)
-
-# Plotting the above results
-plot(-log10(cutoffs),females,ylim=c(0,nrow(chrY)),ylab='Chr Y # undetected ',xlab='p-value cutoff',xaxt="n")
-points(-log10(cutoffs),males,pch=3)
-axis(1,at=-log10(cutoffs),labels=cutoffs)
-legend('topleft',pch=c(2,1),legend=c('Male 90% Quantile','Female 10% Quantile'))
-invisible(NULL)
-
-#############################################################################################
-# CHOOSE YOUR P-VALUE #
-
-# Remove the large objects that won't be used
-rm(list = c("meth", "males", "females", "chrY", "cutoffs", "tmp"))
-detach("package:ewastools", unload = TRUE)
-
-# Import the IDAT data into an RGChannel object for further analysis
+# Import the IDAT data into an RGChannel object
 rgSet <- read.metharray.exp(targets = targets)
 
-# Converting to MethylSet object & performing SWAN normalization
-mSet <- preprocessRaw(rgSet)
-mSetSw <- SWAN(mSet,verbose=FALSE)
+# Make a PDF report of beta values and control probe intensities for initial rgSet
+qcReport(rgSet, sampNames = targets$Sample_Name, sampGroups = targets$Sample_Group, pdf = "/Users/sups/Documents/R_Prog/COV/Beta_Probe.pdf")
 
-# Plotting density distribution of beta values before and after using SWAN.
-par(mfrow=c(1,1), cex=0.50)
-densityByProbeType(mSet[,1], main = "Raw")
-densityByProbeType(mSetSw[,1], main = "SWAN")
+#### Step 2: Convert the raw intensities into beta values #####
+
+# Converting to MethylSet object
+mSet <- preprocessIllumina(rgSet, bg.correct = TRUE, normalize = "controls")
+# QC of the mSet
+performQC(mSet)
+
+#### Step 3: Filter out Y chromosome signals for females ####
+
+## Run the code detP.R to find out the detection p-value. ##
+## Enter the detection p-value below. ##
 
 # Only select those intensities that are lesser than the cut-off
 detP <- detectionP(rgSet)
-keep <- rowSums(detP < 0.05) == ncol(rgSet) # where 0.001 is the selected p-value
-mSetSw <- mSetSw[keep,]
+keep <- rowSums(detP < 0.05) == ncol(rgSet) # where 0.05 is the selected p-value
+mSet <- mSet[keep,]
+
+#### Step 4: SWAN normalization ####
+# SWAN normalization
+mSetSw <- SWAN(mSet,verbose=FALSE)
+# QC of SWAN normalized mSet
+performQC(mSetSw)
+
+# Plotting density distribution of beta values before and after using SWAN.
+# par(mfrow=c(1,1), cex=0.50)
+# densityByProbeType(mSet[,1], main = "Raw")
+# densityByProbeType(mSetSw[,1], main = "SWAN")
+
+#### Step 5: Remove SNP signals ####
+# We strongly recommend to drop the probes that contain either a SNP at
+# the CpG interrogation or at the single nucleotide extension.The function
+# "dropLociWithSnps" allows to drop the corresponding probes for any minor
+# allele frequency (maf).
+mSetSwSNP <- dropLociWithSnps(mSetSw, snps=c("SBE","CpG"), maf=0)
 
 # Extract beta and M-values from the SWAN normalised data.
 # We prefer to add an offset to the methylated and unmethylated intensities
@@ -103,13 +97,16 @@ meth <- getMeth(mSetSw)
 unmeth <- getUnmeth(mSetSw)
 Mval <- log2((meth + 100)/(unmeth + 100))
 beta <- getBeta(mSetSw)
-dim(Mval)
+# dim(Mval)
 
 # Plot MDS (multi-dimensional scaling) of cancer and normal samples.
 # This is a good check to make sure samples cluster together according to their type.
 par(mfrow=c(1,1))
 plotMDS(Mval, labels=targets$Sample_Name, col=as.integer(factor(targets$Sample_Group)))
 legend("bottom",legend=c("Healthy","RA"),pch=16,cex=1.2,col=1:2)
+
+tree <- hclust(dist(t(Mval)))
+plot(tree)
 
 # We test for differential methylation using the *limma* package which
 # employs an empirical Bayes framework based on Guassian model theory.
@@ -128,7 +125,7 @@ summary(decideTests(fit.reduced))
 top<-topTable(fit.reduced,coef=2) # coef is the last column index in the decideTests table
 
 cpgs <- rownames(top)
-par(mfrow=c(1,1))
+par(mfrow=c(2,2))
 for(i in 1:4){
   stripchart(beta[rownames(beta)==cpgs[i],]~design[,2],method="jitter",
              group.names=c("Healthy","RA"),pch=16,cex=1.5,col=c(4,2),ylab="Beta values",
@@ -167,12 +164,12 @@ for(i in 1:4){
 grp <- factor(targets$Sample_Group, labels=c(0,1))
 # extract Illumina negative control data
 INCs <- getINCs(rgSet)
-head(INCs)
+# head(INCs)
 # add negative control data to M-values
 Mc <- rbind(Mval,INCs)
 # create vector marking negative controls in data matrix
 ctl1 <- rownames(Mc) %in% rownames(INCs)
-table(ctl1)
+# table(ctl1)
 
 # Stage 1 analysis
 rfit1 <- RUVfit(Y = Mc, X = grp, ctl = ctl1)
@@ -182,7 +179,7 @@ top1 <- topRUV(rfit2, num=Inf, p.BH = 1) # p.BH is cutoff value for Benjamini-Ho
 head(top1)
 
 ctl2 <- rownames(Mval) %in% rownames(top1[top1$p.BH_X1.1 > 0.5,])
-table(ctl2)
+# table(ctl2)
 
 # Stage 2 analysis
 
@@ -190,7 +187,7 @@ table(ctl2)
 rfit3 <- RUVfit(Y = Mval, X = grp, ctl = ctl2)
 rfit4 <- RUVadj(Y = Mval, fit = rfit3)
 # Look at table of top results
-topRUV(rfit4)
+# topRUV(rfit4)
 
 # To visualise the effect that the RUVm adjustment is having on the data,
 # using an MDS plot for example, the getAdj function can be used to
@@ -207,10 +204,10 @@ Madj <- getAdj(Mval, rfit3) # get adjusted values
 par(mfrow=c(1,2))
 plotMDS(Mval, labels=targets$Sample_Name, col=as.integer(factor(targets$Sample_Group)),
         main="Unadjusted", gene.selection = "common")
-legend("topleft",legend=c("RA","Healthy"),pch=16,cex=1,col=1:2)
+legend("topleft",legend=c("Healthy","RA"),pch=16,cex=1,col=1:2)
 plotMDS(Madj, labels=targets$Sample_Name, col=as.integer(factor(targets$Sample_Group)),
         main="Adjusted: RUV-inverse", gene.selection = "common")
-legend("topleft",legend=c("RA","Healthy"),pch=16,cex=1,col=1:2)
+legend("topleft",legend=c("Healthy","RA"),pch=16,cex=1,col=1:2)
 
 # Rather than testing for differences in mean methylation, we may be interested
 # in testing for differences between group variances. For example, it has been
@@ -231,14 +228,24 @@ legend("topleft",legend=c("RA","Healthy"),pch=16,cex=1,col=1:2)
 # is performed. Note that as a default, varFit uses the robust setting in the
 # limma framework, which requires the use of the statmod package.
 
-fitvar <- varFit(Mval, design = design, coef = c(1,2))
+# fitvar <- varFit(Mval, design = design, coef = c(1,2))
+# This gives a different result.
+
+fitvar <- varFit(Madj, design = design, coef = c(1,2))
+# Warning message:
+# 3537 very small variances detected, have been offset away from zero
 
 # The numbers of hyper-variable (1) and hypo-variable (-1) genes in RA vs healthy
 # can be obtained using decideTests.
 
 summary(decideTests(fitvar))
+# Result:
+#        (Intercept) targets$Sample_GroupRA
+# Down             0                 331702
+# NotSig        4307                  36723
+# Up          472793                 108675
 topDV <- topVar(fitvar, coef=2)
-topDV
+# topDV
 
 # The β values for the top 4 differentially variable CpGs can be seen below:
 cpgsDV <- rownames(topDV)
@@ -280,8 +287,8 @@ for(i in 1:4){
 
 # To illustrate how to use gometh, consider the results from the differential
 # methylation analysis with RUVm.
-top <- topRUV(rfit4, number = Inf, p.BH = 1)
-table(top$p.BH_X1.1 < 0.01)
+top2 <- topRUV(rfit4, number = Inf, p.BH = 1)
+table(top2$p.BH_X1.1 < 0.01)
 
 # We take the top 10000 CpG sites as input to `gometh`.
 topCpGs<-topRUV(rfit4,number=10000)
@@ -302,9 +309,12 @@ sigCpGs <- rownames(topCpGs)
 # The function topGSA shows the top enriched GO categories. The function gsameth
 # is called for GO and KEGG pathway analysis with the appropriate inputs.
 
-gst <- gometh(sig.cpg=sigCpGs, all.cpg=rownames(top), collection="GO")
+gst <- gometh(sig.cpg=sigCpGs, all.cpg=rownames(top2), collection="GO")
 gene_ontology_res <- topGSA(gst) # top 20 pathways
 write.csv(gene_ontology_res, file = "Gene_Ontology_GSE42861-60.csv")
-entrez_ids <- getMappedEntrezIDs(sig.cpg = sigCpGs, all.cpg = rownames(top), array.type = "450K")
+entrez_ids <- getMappedEntrezIDs(sig.cpg = sigCpGs, all.cpg = rownames(top2), array.type = "450K")
 # It maps the significant CpG probe names to Entrez Gene IDs, as well as all the CpG sites tested.
 # It also calculates the numbers of probes for gene.
+
+gst2 <- gometh(sig.cpg=sigCpGs, all.cpg=rownames(top2), collection="KEGG")
+kegg_res <- topGSA(gst2)
