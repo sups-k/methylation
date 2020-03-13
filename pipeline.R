@@ -22,7 +22,7 @@ baseDir <- "/Users/sups/Documents/R_Prog/COV/GSE42861"
 targets <- read.metharray.sheet(baseDir)
 
 # Function to perform QC
-performQC <- function(mSet){
+performQC <- function(mSet, filename){
   # Quality control plot uses the log median intensity in both the methylated (M)
   # and unmethylated (U) channels. When plotting these two medians against each other,
   # it has been observed that good samples cluster together, while failed samples
@@ -36,7 +36,7 @@ performQC <- function(mSet){
   colnames(minfi_unmeth) <- sub("\\_.*", "", colnames(minfi_unmeth))
   
   #### Save in PDF ####
-  pdf(file = "/Users/sups/Documents/R_Prog/COV/Boxplot_Intensities_Outliers.pdf", width = 10, height = 10)
+  pdf(file = filename, width = 10, height = 10)
   boxplot(log(minfi_meth), las = 2, cex.axis = 0.8, main = "Methylated")
   boxplot(log(minfi_unmeth), las = 2, cex.axis = 0.8, main = "Unmethylated")
   plotQC(qc)
@@ -58,7 +58,7 @@ qcReport(rgSet, sampNames = targets$Sample_Name, sampGroups = targets$Sample_Gro
 # Converting to MethylSet object
 mSet <- preprocessIllumina(rgSet, bg.correct = TRUE, normalize = "controls")
 # QC of the mSet
-performQC(mSet)
+performQC(mSet, filename = "/Users/sups/Documents/R_Prog/COV/Boxplot_Intensities_Outliers_Raw.pdf")
 
 #### Step 3: Filter out Y chromosome signals for females ####
 
@@ -74,32 +74,36 @@ mSet <- mSet[keep,]
 # SWAN normalization
 mSetSw <- SWAN(mSet,verbose=FALSE)
 # QC of SWAN normalized mSet
-performQC(mSetSw)
+performQC(mSetSw, filename = "/Users/sups/Documents/R_Prog/COV/Boxplot_Intensities_Outliers_SWAN.pdf")
+
+#### Step 5: Remove SNP signals ####
+# We strongly recommend to drop the probes that contain either a SNP at
+# the CpG interrogation or at the single nucleotide extension.The function
+# "dropLociWithSnps" allows to drop the corresponding probes for any minor
+# allele frequency (maf). Maf is calculated based on dbSNP database.
+GRset <- mapToGenome(mSetSw, mergeManifest = TRUE) # convert to genomic ratio set to filter SNP
+GRSetSNP <- dropLociWithSnps(GRset, snps=c("SBE","CpG"), maf=0)
+performQC(GRSetSNP, filename = "/Users/sups/Documents/R_Prog/COV/Boxplot_Intensities_Outliers_SNP.pdf")
 
 # Plotting density distribution of beta values before and after using SWAN.
 # par(mfrow=c(1,1), cex=0.50)
 # densityByProbeType(mSet[,1], main = "Raw")
 # densityByProbeType(mSetSw[,1], main = "SWAN")
 
-#### Step 5: Remove SNP signals ####
-# We strongly recommend to drop the probes that contain either a SNP at
-# the CpG interrogation or at the single nucleotide extension.The function
-# "dropLociWithSnps" allows to drop the corresponding probes for any minor
-# allele frequency (maf).
-mSetSwSNP <- dropLociWithSnps(mSetSw, snps=c("SBE","CpG"), maf=0)
+#### Step 6: Batch normalization ####
 
 # Extract beta and M-values from the SWAN normalised data.
 # We prefer to add an offset to the methylated and unmethylated intensities
 # when calculating M-values, hence we extract the methylated and unmethylated channels
 # separately and perform our own calculation.
-meth <- getMeth(mSetSw)
-unmeth <- getUnmeth(mSetSw)
+meth <- getMeth(GRSetSNP)
+unmeth <- getUnmeth(GRSetSNP)
 Mval <- log2((meth + 100)/(unmeth + 100))
-beta <- getBeta(mSetSw)
-# dim(Mval)
+beta <- getBeta(GRSetSNP)
 
-# Plot MDS (multi-dimensional scaling) of cancer and normal samples.
+# Plot MDS (multi-dimensional scaling) of RA and normal samples.
 # This is a good check to make sure samples cluster together according to their type.
+pdf(file = "/Users/sups/Documents/R_Prog/COV/Clustering.pdf", width = 10, height = 10)
 par(mfrow=c(1,1))
 plotMDS(Mval, labels=targets$Sample_Name, col=as.integer(factor(targets$Sample_Group)))
 legend("bottom",legend=c("Healthy","RA"),pch=16,cex=1.2,col=1:2)
@@ -107,6 +111,7 @@ legend("bottom",legend=c("Healthy","RA"),pch=16,cex=1.2,col=1:2)
 tree <- hclust(dist(t(Mval)))
 plot(tree)
 
+dev.off()
 # We test for differential methylation using the *limma* package which
 # employs an empirical Bayes framework based on Guassian model theory.
 # We need to set up the design matrix. The most straightforward is directly
