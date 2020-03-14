@@ -14,7 +14,7 @@ library(IlluminaHumanMethylation450kanno.ilmn12.hg19)
 library(data.table)
 
 # Set directory containing all IDAT files and Sample Sheet
-baseDir <- "/Users/sups/Documents/R_Prog/COV/GSE42861"
+baseDir <- "/home/ibab/RS_Project/Methylation/RAvHealthy/GSE42861/GPL13534/GSE42861"
 # setwd(baseDir)
 
 # Read the Sample Sheet
@@ -51,14 +51,14 @@ performQC <- function(mSet, filename){
 rgSet <- read.metharray.exp(targets = targets)
 
 # Make a PDF report of beta values and control probe intensities for initial rgSet
-qcReport(rgSet, sampNames = targets$Sample_Name, sampGroups = targets$Sample_Group, pdf = "/Users/sups/Documents/R_Prog/COV/Beta_Probe.pdf")
+qcReport(rgSet, sampNames = targets$Sample_Name, sampGroups = targets$Sample_Group, pdf = "/home/ibab/RS_Project/Methylation/RAvHealthy/GSE42861/GPL13534/Beta_Probe.pdf")
 
 #### Step 2: Convert the raw intensities into beta values #####
 
 # Converting to MethylSet object
 mSet <- preprocessIllumina(rgSet, bg.correct = TRUE, normalize = "controls")
 # QC of the mSet
-performQC(mSet, filename = "/Users/sups/Documents/R_Prog/COV/Boxplot_Intensities_Outliers_Raw.pdf")
+performQC(mSet, filename = "/home/ibab/RS_Project/Methylation/RAvHealthy/GSE42861/GPL13534/Boxplot_Intensities_Outliers_Raw.pdf")
 
 #### Step 3: Filter out Y chromosome signals for females ####
 
@@ -74,7 +74,14 @@ mSet <- mSet[keep,]
 # SWAN normalization
 mSetSw <- SWAN(mSet,verbose=FALSE)
 # QC of SWAN normalized mSet
-performQC(mSetSw, filename = "/Users/sups/Documents/R_Prog/COV/Boxplot_Intensities_Outliers_SWAN.pdf")
+performQC(mSetSw, filename = "/home/ibab/RS_Project/Methylation/RAvHealthy/GSE42861/GPL13534/Boxplot_Intensities_Outliers_SWAN.pdf")
+
+# Plotting density distribution of beta values before and after using SWAN.
+pdf(file = "/home/ibab/RS_Project/Methylation/RAvHealthy/GSE42861/GPL13534/SWAN_Density.pdf", width = 10, height = 10)
+par(mfrow=c(1,1), cex=0.50)
+densityByProbeType(mSet[,1], main = "Raw")
+densityByProbeType(mSetSw[,1], main = "SWAN")
+dev.off()
 
 #### Step 5: Remove SNP signals ####
 # We strongly recommend to drop the probes that contain either a SNP at
@@ -83,12 +90,7 @@ performQC(mSetSw, filename = "/Users/sups/Documents/R_Prog/COV/Boxplot_Intensiti
 # allele frequency (maf). Maf is calculated based on dbSNP database.
 GRset <- mapToGenome(mSetSw, mergeManifest = TRUE) # convert to genomic ratio set to filter SNP
 GRSetSNP <- dropLociWithSnps(GRset, snps=c("SBE","CpG"), maf=0)
-performQC(GRSetSNP, filename = "/Users/sups/Documents/R_Prog/COV/Boxplot_Intensities_Outliers_SNP.pdf")
-
-# Plotting density distribution of beta values before and after using SWAN.
-# par(mfrow=c(1,1), cex=0.50)
-# densityByProbeType(mSet[,1], main = "Raw")
-# densityByProbeType(mSetSw[,1], main = "SWAN")
+performQC(GRSetSNP, filename = "/home/ibab/RS_Project/Methylation/RAvHealthy/GSE42861/GPL13534/Boxplot_Intensities_Outliers_SNP.pdf")
 
 #### Step 6: Batch normalization ####
 
@@ -103,7 +105,7 @@ beta <- getBeta(GRSetSNP)
 
 # Plot MDS (multi-dimensional scaling) of RA and normal samples.
 # This is a good check to make sure samples cluster together according to their type.
-pdf(file = "/Users/sups/Documents/R_Prog/COV/Clustering.pdf", width = 10, height = 10)
+pdf(file = "/home/ibab/RS_Project/Methylation/RAvHealthy/GSE42861/GPL13534/Clustering.pdf", width = 10, height = 10)
 par(mfrow=c(1,1))
 plotMDS(Mval, labels=targets$Sample_Name, col=as.integer(factor(targets$Sample_Group)))
 legend("bottom",legend=c("Healthy","RA"),pch=16,cex=1.2,col=1:2)
@@ -129,6 +131,7 @@ summary(decideTests(fit.reduced))
 top<-topTable(fit.reduced,coef=2) # coef is the last column index in the decideTests table
 
 cpgs <- rownames(top)
+pdf(file = "/home/ibab/RS_Project/Methylation/RAvHealthy/GSE42861/GPL13534/4DMR.pdf", width = 10, height = 10)
 par(mfrow=c(2,2))
 for(i in 1:4){
   stripchart(beta[rownames(beta)==cpgs[i],]~design[,2],method="jitter",
@@ -136,6 +139,7 @@ for(i in 1:4){
              vertical=TRUE,cex.axis=1.5,cex.lab=1.5)
   title(cpgs[i],cex.main=1.5)
 }
+dev.off()
 
 # 450k array studies are subject to unwanted technical variation such as batch
 # effects and other, often unknown, sources of variation. The adverse effects of
@@ -179,7 +183,7 @@ ctl1 <- rownames(Mc) %in% rownames(INCs)
 rfit1 <- RUVfit(Y = Mc, X = grp, ctl = ctl1)
 rfit2 <- RUVadj(Y = Mc, fit = rfit1)
 
-top1 <- topRUV(rfit2, num=Inf, p.BH = 1) # p.BH is cutoff value for Benjamini-Hochberg adjusted p-values
+top1 <- topRUV(rfit2, num=Inf, p.BH = 0.9) # p.BH is cutoff value for Benjamini-Hochberg adjusted p-values
 head(top1)
 
 ctl2 <- rownames(Mval) %in% rownames(top1[top1$p.BH_X1.1 > 0.5,])
@@ -205,6 +209,7 @@ Madj <- getAdj(Mval, rfit3) # get adjusted values
 # changes with and without RUVm adjustment. RUVm reduces the distance between
 # the samples in each group by removing unwanted variation.
 
+pdf(file = "/home/ibab/RS_Project/Methylation/RAvHealthy/GSE42861/GPL13534/limma.pdf", width = 10, height = 10)
 par(mfrow=c(1,2))
 plotMDS(Mval, labels=targets$Sample_Name, col=as.integer(factor(targets$Sample_Group)),
         main="Unadjusted", gene.selection = "common")
@@ -212,6 +217,7 @@ legend("topleft",legend=c("Healthy","RA"),pch=16,cex=1,col=1:2)
 plotMDS(Madj, labels=targets$Sample_Name, col=as.integer(factor(targets$Sample_Group)),
         main="Adjusted: RUV-inverse", gene.selection = "common")
 legend("topleft",legend=c("Healthy","RA"),pch=16,cex=1,col=1:2)
+dev.off()
 
 # Rather than testing for differences in mean methylation, we may be interested
 # in testing for differences between group variances. For example, it has been
@@ -239,6 +245,10 @@ fitvar <- varFit(Madj, design = design, coef = c(1,2))
 # Warning message:
 # 3537 very small variances detected, have been offset away from zero
 
+# Warning messages:
+# 1: In log(var.mat) : NaNs produced
+# 2: 2017 very small variances detected, have been offset away from zero 
+
 # The numbers of hyper-variable (1) and hypo-variable (-1) genes in RA vs healthy
 # can be obtained using decideTests.
 
@@ -248,11 +258,18 @@ summary(decideTests(fitvar))
 # Down             0                 331702
 # NotSig        4307                  36723
 # Up          472793                 108675
+
+#       (Intercept) targets$Sample_GroupRA
+# Down             0                 362776
+# NotSig        2124                  45358
+# Up          463427                  57417
+
 topDV <- topVar(fitvar, coef=2)
 # topDV
 
 # The β values for the top 4 differentially variable CpGs can be seen below:
 cpgsDV <- rownames(topDV)
+pdf(file = "/home/ibab/RS_Project/Methylation/RAvHealthy/GSE42861/GPL13534/4DMR_BatchNorm.pdf", width = 10, height = 10)
 par(mfrow=c(2,2))
 for(i in 1:4){
   stripchart(beta[rownames(beta)==cpgsDV[i],]~design[,2],method="jitter",
@@ -260,7 +277,7 @@ for(i in 1:4){
              vertical=TRUE,cex.axis=1.5,cex.lab=1.5)
   title(cpgsDV[i],cex.main=1.5)
 }
-
+dev.off()
 ## Gene Ontology Analysis
 
 # Once a differential methylation analysis has been performed, it may be
