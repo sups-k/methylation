@@ -14,7 +14,7 @@ library(IlluminaHumanMethylation450kanno.ilmn12.hg19)
 
 # Set directory containing all IDAT files and Sample Sheet
 # baseDir <- "/home/ibab/RS_Project/Methylation/RAvHealthy/GSE42861/GPL13534/GSE42861"
-baseDir <- "/Users/sups/Documents/R_Prog/COV/GSE42861"
+baseDir <- "/Users/sups/Downloads/R_Prog/COV/GSE42861"
 # setwd(baseDir)
 
 # Read the Sample Sheet
