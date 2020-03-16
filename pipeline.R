@@ -11,10 +11,10 @@ library(limma)
 library(minfi)
 library(IlluminaHumanMethylation450kmanifest)
 library(IlluminaHumanMethylation450kanno.ilmn12.hg19)
-library(data.table)
 
 # Set directory containing all IDAT files and Sample Sheet
-baseDir <- "/home/ibab/RS_Project/Methylation/RAvHealthy/GSE42861/GPL13534/GSE42861"
+# baseDir <- "/home/ibab/RS_Project/Methylation/RAvHealthy/GSE42861/GPL13534/GSE42861"
+baseDir <- "/Users/sups/Documents/R_Prog/COV/GSE42861"
 # setwd(baseDir)
 
 # Read the Sample Sheet
@@ -88,7 +88,7 @@ dev.off()
 # the CpG interrogation or at the single nucleotide extension.The function
 # "dropLociWithSnps" allows to drop the corresponding probes for any minor
 # allele frequency (maf). Maf is calculated based on dbSNP database.
-GRset <- mapToGenome(mSetSw, mergeManifest = TRUE) # convert to genomic ratio set to filter SNP
+GRset <- mapToGenome(mSetSw, mergeManifest = TRUE) # convert to genomic methyl set to filter SNP
 GRSetSNP <- dropLociWithSnps(GRset, snps=c("SBE","CpG"), maf=0)
 performQC(GRSetSNP, filename = "/home/ibab/RS_Project/Methylation/RAvHealthy/GSE42861/GPL13534/Boxplot_Intensities_Outliers_SNP.pdf")
 
