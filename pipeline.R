@@ -50,13 +50,25 @@ performQC <- function(mSet, filename){
 # Import the IDAT data into an RGChannel object
 rgSet <- read.metharray.exp(targets = targets)
 
-# Make a PDF report of beta values and control probe intensities for initial rgSet
+### Initial QC
+
+#1: Make a PDF report of beta values and control probe intensities for initial rgSet
 qcReport(rgSet, sampNames = targets$Sample_Name, sampGroups = targets$Sample_Group, pdf = "/home/ibab/RS_Project/Methylation/RAvHealthy/GSE42861/GPL13534/Beta_Probe.pdf")
+
+#2: Check if reported sex data is correct
+mSex <- preprocessRaw(rgSet)
+GRsex <- mapToGenome(mSex)
+predictedSex <- getSex(GRsex, cutoff = -2)$predictedSex
+sex <- cbind.data.frame(targets$sex, predictedSex, row.names = targets$Sample_Name)
+write.csv(sex, file = "/Users/sups/Downloads/R_Prog/COV/predictedSex.csv")
+
+# Remove objects not required
+rm(list = c("mSex", "GRsex", "predictedSex", "sex"))
 
 #### Step 2: Convert the raw intensities into beta values #####
 
 # Converting to MethylSet object
-mSet <- preprocessIllumina(rgSet, bg.correct = TRUE, normalize = "controls")
+mSet <- preprocessNoob(rgSet) # background correction and dye bias
 # QC of the mSet
 performQC(mSet, filename = "/home/ibab/RS_Project/Methylation/RAvHealthy/GSE42861/GPL13534/Boxplot_Intensities_Outliers_Raw.pdf")
 
@@ -66,7 +78,7 @@ performQC(mSet, filename = "/home/ibab/RS_Project/Methylation/RAvHealthy/GSE4286
 ## Enter the detection p-value below. ##
 
 # Only select those intensities that are lesser than the cut-off
-detP <- detectionP(rgSet)
+detP <- detectionP(rgSet) # detection p-value represents the confidence measure for the beta value of the sample
 keep <- rowSums(detP < 0.05) == ncol(rgSet) # where 0.05 is the selected p-value
 mSet <- mSet[keep,]
 
@@ -333,9 +345,13 @@ sigCpGs <- rownames(topCpGs)
 gst <- gometh(sig.cpg=sigCpGs, all.cpg=rownames(top2), collection="GO")
 gene_ontology_res <- topGSA(gst) # top 20 pathways
 write.csv(gene_ontology_res, file = "Gene_Ontology_GSE42861-60.csv")
+
 entrez_ids <- getMappedEntrezIDs(sig.cpg = sigCpGs, all.cpg = rownames(top2), array.type = "450K")
+write.csv(entrez_ids, file = "EntrezID_GSE42861-60.csv")
+
 # It maps the significant CpG probe names to Entrez Gene IDs, as well as all the CpG sites tested.
 # It also calculates the numbers of probes for gene.
 
 gst2 <- gometh(sig.cpg=sigCpGs, all.cpg=rownames(top2), collection="KEGG")
 kegg_res <- topGSA(gst2)
+write.csv(kegg_res, file = "KEGG_GSE42861-60.csv")
