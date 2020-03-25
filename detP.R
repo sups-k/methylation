@@ -6,7 +6,7 @@ library(data.table)
 library(ewastools)
 
 # Set directory containing all IDAT files and Sample Sheet
-baseDir <- "/Users/sups/Documents/R_Prog/COV/GSE42861"
+baseDir <- "/Users/sups/Downloads/R_Prog/COV/GSE42861"
 setwd(baseDir)
 
 # Read the Sample Sheet
