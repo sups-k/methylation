@@ -221,7 +221,7 @@ ctl1 <- rownames(Mc) %in% rownames(INCs)
 rfit1 <- RUVfit(Y = Mc, X = grp, ctl = ctl1)
 rfit2 <- RUVadj(Y = Mc, fit = rfit1)
 
-top1 <- topRUV(rfit2, num=Inf, p.BH = 0.9) # p.BH is cutoff value for Benjamini-Hochberg adjusted p-values
+top1 <- topRUV(rfit2, num=Inf, p.BH = 1) # p.BH is cutoff value for Benjamini-Hochberg adjusted p-values
 
 ctl2 <- rownames(Mval) %in% rownames(top1[top1$p.BH_X1.1 > 0.5,])
 
