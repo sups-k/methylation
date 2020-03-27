@@ -1,5 +1,6 @@
 ## Calculate detection P values - adapted from ewastools
 # Author: Jonathan A. Heiss
+# Developed by Suparna Kumar and Aparna Sarju
 
 library(minfi)
 library(data.table)
