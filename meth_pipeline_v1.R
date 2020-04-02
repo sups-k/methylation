@@ -65,6 +65,21 @@ setwd(baseDir)
 # Read the Sample Sheet
 targets <- read.metharray.sheet(baseDir)
 
+## Function to split up a matrix
+mat_split <- function(M, r, c){
+  nr <- ceiling(nrow(M)/r)
+  nc <- ceiling(ncol(M)/c)
+  newM <- matrix(NA, nr*r, nc*c)
+  newM[1:nrow(M), 1:ncol(M)] <- M
+  
+  div_k <- kronecker(matrix(seq_len(nr*nc), nr, byrow = TRUE), matrix(1, r, c))
+  matlist <- split(newM, div_k)
+  N <- length(matlist)
+  mats <- unlist(matlist)
+  dim(mats)<-c(r, c, N)
+  return(mats)
+}
+
 ## Function to perform QC
 
 performQC <- function(mSet, filename){
@@ -79,16 +94,25 @@ performQC <- function(mSet, filename){
   # Shorten column names to include only sample names
   colnames(minfi_meth) <- sub("\\_.*", "", colnames(minfi_meth))
   colnames(minfi_unmeth) <- sub("\\_.*", "", colnames(minfi_unmeth))
+  log_minfi_meth <- log(minfi_meth)
+  log_minfi_unmeth <- log(minfi_unmeth)
+  
+  y <- mat_split(log_minfi_meth, nrow(log_minfi_meth), 60)
+  iter <- ((ncol(log_minfi_meth))%/%60 + 1)
+  
+  x <- mat_split(log_minfi_unmeth, nrow(log_minfi_unmeth), 60)
   
   #### Save in PDF ####
   pdf(file = filename, width = 10, height = 10)
-  boxplot(log(minfi_meth), las = 2, cex.axis = 0.8, main = "Methylated")
-  boxplot(log(minfi_unmeth), las = 2, cex.axis = 0.8, main = "Unmethylated")
+  for (i in 1:iter) {
+    boxplot(y[, , i], las = 2, cex.axis = 0.8, main = "Methylated")
+  }
+  for (i in 1:iter) {
+    boxplot(x[, , i], las = 2, cex.axis = 0.8, main = "Unmethylated")
+  }
   plotQC(qc)
   dev.off()
 }
-
-
 
 #### Step 1: Read the raw IDAT files #####
 
@@ -142,6 +166,20 @@ meth <- getMeth(mSetSw)
 unmeth <- getUnmeth(mSetSw)
 Mval <- log2((meth + 100)/(unmeth + 100))
 beta <- getBeta(mSetSw)
+
+colnames(meth) <- sub("\\_.*", "", colnames(meth))
+colnames(unmeth) <- sub("\\_.*", "", colnames(unmeth))
+meth_colnames <- colnames(meth)
+unmeth_colnames <- colnames(unmeth)
+# Save the methylated sample names in a text file
+sink(file = "/Users/sups/Downloads/R_Prog/COV/meth_names.txt")
+print(meth_colnames)
+sink()
+
+# Save the unmethylated sample names in a text file
+sink(file = "/Users/sups/Downloads/R_Prog/COV/unmeth_names.txt")
+print(unmeth_colnames)
+sink()
 
 # Plot MDS (multi-dimensional scaling) of RA and normal samples.
 # This is a good check to make sure samples cluster together according to their type.
@@ -221,7 +259,7 @@ ctl1 <- rownames(Mc) %in% rownames(INCs)
 rfit1 <- RUVfit(Y = Mc, X = grp, ctl = ctl1)
 rfit2 <- RUVadj(Y = Mc, fit = rfit1)
 
-top1 <- topRUV(rfit2, num=Inf, p.BH = 0.9) # p.BH is cutoff value for Benjamini-Hochberg adjusted p-values
+top1 <- topRUV(rfit2, num=Inf, p.BH = 1) # p.BH is cutoff value for Benjamini-Hochberg adjusted p-values
 
 ctl2 <- rownames(Mval) %in% rownames(top1[top1$p.BH_X1.1 > 0.5,])
 
