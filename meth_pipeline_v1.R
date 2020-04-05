@@ -1,4 +1,5 @@
 # DNA Methylation Pipeline for Illumina HumanMethylation450K BeadChip Data
+# NO. OF SAMPLES < 613 FOR 450K DATA
 # Developed by Suparna Kumar
 # For the analysis of RA vs. Healthy whole (peripheral) blood samples
 
@@ -137,7 +138,7 @@ performQC(mSet, filename = "/Users/sups/Downloads/R_Prog/COV/Boxplot_Intensities
 
 # Only select those intensities that are lesser than the cut-off
 detP <- detectionP(rgSet) # detection p-value represents the confidence measure for the beta value of the sample
-keep <- rowSums(detP < 0.05) == ncol(rgSet) # where 0.05 is the selected p-value
+keep <- rowSums(detP < 0.01) == ncol(rgSet) # where 0.01 is the selected p-value
 mSet <- mSet[keep,]
 
 #### Step 4: SWAN normalization ####
