@@ -144,6 +144,7 @@ mSet <- mSet[keep,]
 #### Step 4: SWAN normalization ####
 # Background correction and dye bias
 mSetBG <- preprocessNoob(rgSet)
+mSetBG <- mSetBG[keep,]
 performQC(mSetBG, filename = "/Users/sups/Downloads/R_Prog/COV/Boxplot_Intensities_Outliers_BGcorr.pdf")
 # SWAN normalization
 mSetSw <- SWAN(mSetBG,verbose=FALSE)
