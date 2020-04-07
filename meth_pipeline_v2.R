@@ -264,7 +264,7 @@ des <- model.matrix(~grp)
 # limma differential methylation analysis
 lfit1 <- lmFit(Mval, design=des)
 lfit2 <- eBayes(lfit1) # Stage 1 analysis
-top1 <- topRUV(lfit2, num=Inf) # Removing intercept from test coefficients
+top1 <- topTable(lfit2, num=Inf) # Removing intercept from test coefficients
 ctl2 <- rownames(Mval) %in% rownames(top1[top1$adj.P.Val > 0.5,])
 
 
