@@ -66,6 +66,12 @@ setwd(baseDir)
 # Read the Sample Sheet
 targets <- read.metharray.sheet(baseDir)
 
+## Function to obtain the raw p value and t statistics from the linear model fit produced by "varFit"
+get_p_table <- function(fit, coef, number) {
+  out <- data.frame(AvgVar = fit$AvgVar, LogVarRatio = fit$LogVarRatio[, coef], DiffLevene = fit$coeff[, coef], t = fit$t[, coef], P.Value = fit$p.value[, coef])
+  out[1:number, ]
+}
+
 ## Function to split up a matrix
 mat_split <- function(M, r, c){
   nr <- ceiling(nrow(M)/r)
@@ -158,8 +164,6 @@ densityByProbeType(mSet[,1], main = "Raw")
 densityByProbeType(mSetSw[,1], main = "SWAN")
 dev.off()
 
-#### Step 5: Batch normalization ####
-
 # Extract beta and M-values from the SWAN normalised data.
 # We prefer to add an offset to the methylated and unmethylated intensities
 # when calculating M-values, hence we extract the methylated and unmethylated channels
@@ -220,6 +224,8 @@ for(i in 1:4){
   title(cpgs[i],cex.main=1.5)
 }
 dev.off()
+
+#### Step 5: Batch normalization ####
 
 # 450k array studies are subject to unwanted technical variation such as batch
 # effects and other, often unknown, sources of variation. The adverse effects of
@@ -293,15 +299,11 @@ plotMDS(Madj, labels=targets$Sample_Name, col=as.integer(factor(targets$Sample_G
 legend("topleft",legend=c("Healthy","RA"),pch=16,cex=1,col=1:2)
 dev.off()
 
-# Rather than testing for differences in mean methylation, we may be interested
-# in testing for differences between group variances. For example, it has been
-#hypothesised that highly variable CpGs in cancer are important for tumour
-# progression (Hansen et al. 2011). Hence we may be interested in CpG sites that
-# are consistently methylated in the normal samples, but variably methylated in the
-# cancer samples.
+######## TESTING FOR DIFFERENCES BETWEEN GROUP VARIATIONS. #########
+# We may be interested in CpG sites that are consistently methylated in the
+# normal samples, but variably methylated in the RA samples.
 
-# In general we recommend at least 10 samples in each group for accurate variance
-# estimation. We are interested in testing for differential
+# CALLING FUNCTION "varFit": We are interested in testing for differential
 # variability in the RA versus healthy group. Note that when we specify the
 # coef parameter, which corresponds to the columns of the design matrix to be used
 # for testing differential variability, we need to specify both the intercept and
@@ -313,20 +315,6 @@ dev.off()
 # limma framework, which requires the use of the statmod package.
 
 fitvar <- varFit(Madj, design = design, coef = c(1,2))
-summary(decideTests(fitvar))
 
-topDV <- topVar(fitvar, coef=2)
-
-# The β values for the top 4 differentially variable CpGs can be seen below:
-cpgsDV <- rownames(topDV)
-pdf(file = "/Users/sups/Downloads/R_Prog/COV/4DMR_BatchNorm.pdf", width = 10, height = 10)
-par(mfrow=c(2,2))
-for(i in 1:4){
-  stripchart(beta[rownames(beta)==cpgsDV[i],]~design[,2],method="jitter",
-             group.names=c("Healthy","RA"),pch=16,cex=1.5,col=c(4,2),ylab="Beta values",
-             vertical=TRUE,cex.axis=1.5,cex.lab=1.5)
-  title(cpgsDV[i],cex.main=1.5)
-}
-dev.off()
-
-write.csv(topDV, file = "/Users/sups/Downloads/R_Prog/COV/Top10CpG.csv")
+table <- get_p_table(fitvar, coef = 2, number = dim(fitvar)[1])
+write.csv(table, file = "/Users/sups/Downloads/R_Prog/COV/RawPval.csv")
