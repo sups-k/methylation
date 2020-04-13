@@ -151,8 +151,6 @@ beta <- getBeta(mSetSw)
 
 colnames(meth) <- sub("\\_.*", "", colnames(meth))
 colnames(unmeth) <- sub("\\_.*", "", colnames(unmeth))
-meth_colnames <- colnames(meth)
-unmeth_colnames <- colnames(unmeth)
 
 # Plot MDS (multi-dimensional scaling) of RA and normal samples.
 # This is a good check to make sure samples cluster together according to their type.
