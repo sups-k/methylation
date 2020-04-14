@@ -88,8 +88,9 @@ performQC <- function(mSet, filename){
   boxplot(log_minfi_unmeth, las = 2, cex.axis = 0.8, main = "Unmethylated")
   
 #  plotQC(qc)
+  badSampleCutoff = 10.5
   meds <- (qc$mMed + qc$uMed)/2 # mean of M & U medians per sample
-  whichBad <- which((meds < 10.5))
+  whichBad <- which((meds < badSampleCutoff))
   plot(qc$mMed, qc$uMed, xlim = c(8, 14), ylim = c(8, 14), 
        xaxt = "n", yaxt = "n", xlab = "Meth median intensity (log2)", 
        ylab = "Unmeth median intensity (log2)", col = ifelse(1:nrow(qc) %in% 
