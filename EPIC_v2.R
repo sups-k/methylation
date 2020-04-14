@@ -86,8 +86,29 @@ performQC <- function(mSet, filename){
   pdf(file = filename, width = 10, height = 10)
   boxplot(log_minfi_meth, las = 2, cex.axis = 0.8, main = "Methylated")
   boxplot(log_minfi_unmeth, las = 2, cex.axis = 0.8, main = "Unmethylated")
-  plotQC(qc)
+  
+#  plotQC(qc)
+  meds <- (qc$mMed + qc$uMed)/2 # mean of M & U medians per sample
+  whichBad <- which((meds < 10.5))
+  plot(qc$mMed, qc$uMed, xlim = c(8, 14), ylim = c(8, 14), 
+       xaxt = "n", yaxt = "n", xlab = "Meth median intensity (log2)", 
+       ylab = "Unmeth median intensity (log2)", col = ifelse(1:nrow(qc) %in% 
+                                                               whichBad, "red", "black"))
+  axis(side = 1, at = c(9, 11, 13))
+  axis(side = 2, at = c(9, 11, 13))
+  abline(badSampleCutoff * 2, -1, lty = 2)
+  if (length(whichBad) > 0) {
+    text(qc$mMed[whichBad], qc$uMed[whichBad] - 0.25, labels = whichBad, 
+         col = "red")
+  }
+  legend("topleft", legend = c("good", "bad, with sample index"), 
+         pch = 1, col = c("black", "red"), bty = "n")
   dev.off()
+  
+  badSampleNames <- mSet@colData@rownames[whichBad]
+  sink(file = "/Users/sups/Downloads/R_Prog/COV/bad_samples.txt")
+  print(badSampleNames)
+  sink()
 }
 
 #### Step 1: Read the Illumina normalised EPIC intensities #####
