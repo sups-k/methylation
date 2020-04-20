@@ -30,7 +30,7 @@ geneslist<-strsplit(ann.keep$UCSC_RefGene_Name,split=";")
 names(geneslist)<-rownames(ann.keep)
 grouplist<-strsplit(ann.keep$UCSC_RefGene_Group,split=";")
 names(grouplist)<-rownames(ann.keep)
-
+# We are not getting every CpG mapped to the genes in UCSC Browser
 flat<-data.frame(symbol=unlist(geneslist),group=unlist(grouplist))
 
 flat$symbol<-as.character(flat$symbol)
