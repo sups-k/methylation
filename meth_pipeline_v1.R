@@ -60,17 +60,11 @@ library(IlluminaHumanMethylation450kmanifest)
 library(IlluminaHumanMethylation450kanno.ilmn12.hg19)
 
 # Set directory containing all IDAT files and Sample Sheet
-baseDir <- "/Users/sups/Downloads/R_Prog/COV/GSE42861"
+baseDir <- "/Users/sups/Downloads/R_Prog/GSE111942_Data_43"
 setwd(baseDir)
 
 # Read the Sample Sheet
 targets <- read.metharray.sheet(baseDir)
-
-## Function to obtain the raw p value and t statistics from the linear model fit produced by "varFit"
-get_p_table <- function(fit, coef, number) {
-  out <- data.frame(AvgVar = fit$AvgVar, LogVarRatio = fit$LogVarRatio[, coef], DiffLevene = fit$coeff[, coef], t = fit$t[, coef], P.Value = fit$p.value[, coef])
-  out[1:number, ]
-}
 
 ## Function to perform QC
 
@@ -206,41 +200,56 @@ dev.off()
 # If the negative control features are not known a priori, they can be identified
 # empirically. This can be achieved via a 2-stage approach, RUVm.
 
-# Stage 1 involves performing a differential methylation analysis using
-# RUV-inverse (by default) and the 613 Illumina negative controls (INCs) as
-# negative control features. This will produce a list of CpGs ranked by p-value
-# according to their level of association with the factor of interest. This list
-# can then be used to identify a set of empirical control probes (ECPs), which will
+
+# Stage 1 analysis
+
+# Setup the factor of interest
+grp <- factor(targets$Sample_Group, labels=c(0,1))
+# Extract 613 (for 450K) Illumina negative control (INC) data. This will serve as negative control features.
+INCs <- getINCs(rgSet)
+# Add negative control data to M-values
+Mc <- rbind(Mval,INCs)
+# Create vector marking negative controls in data matrix
+ctl1 <- rownames(Mc) %in% rownames(INCs)
+
+# The following 3 steps will produce a list of CpGs ranked by p-value according to their level of association with the factor of interest.
+rfit1 <- RUVfit(Y = Mc, X = grp, ctl = ctl1)
+rfit2 <- RUVadj(Y = Mc, fit = rfit1)
+
+# This list (top1) can then be used to identify a set of empirical control probes (ECPs), which will
 # capture more of the unwanted variation than using the INCs alone. ECPs are selected
 # by designating a proportion of the CpGs least associated with the factor of interest
 # as negative control features; this can be done based on either an FDR cut-off
 # or by taking a fixed percentage of probes from the bottom of the ranked list.
+top1 <- topRUV(rfit2, num=Inf, p.BH = 1)
+# p.BH is cutoff value for Benjamini-Hochberg adjusted p-values. Specifying 1 includes all CpGs.
 
-#Stage 2 involves performing a second differential methylation analysis
-# on the original data using RUV-inverse (by default) and the ECPs.
+# Selecting ECPs based on FDR-adjusted p-value (by BH method) cut-off of 50 %
+ctl2 <- rownames(Mval) %in% rownames(top1[top1$p.BH_X1.1 > 0.5,]) 
 
-# setup the factor of interest
-grp <- factor(targets$Sample_Group, labels=c(0,1))
-# extract Illumina negative control data
-INCs <- getINCs(rgSet)
-# add negative control data to M-values
-Mc <- rbind(Mval,INCs)
-# create vector marking negative controls in data matrix
-ctl1 <- rownames(Mc) %in% rownames(INCs)
 
-# Stage 1 analysis
-rfit1 <- RUVfit(Y = Mc, X = grp, ctl = ctl1)
-rfit2 <- RUVadj(Y = Mc, fit = rfit1)
-
-top1 <- topRUV(rfit2, num=Inf, p.BH = 1) # p.BH is cutoff value for Benjamini-Hochberg adjusted p-values
-
-ctl2 <- rownames(Mval) %in% rownames(top1[top1$p.BH_X1.1 > 0.5,])
 
 # Stage 2 analysis
 
-# Perform RUV adjustment and fit
-rfit3 <- RUVfit(Y = Mval, X = grp, ctl = ctl2)
+# Performing a second differential methylation analysis
+# on the original data using RUV-inverse (by default) and the ECPs.
+
+rfit3 <- RUVfit(Y = Mval, X = grp, ctl = ctl2) # Mval is original data and ctl2 contains ECPs
 rfit4 <- RUVadj(Y = Mval, fit = rfit3)
+top2 <- topRUV(rfit4, number = Inf, p.BH = 1) # Table of top results
+
+# In this, the "mean" refers to M-value. M-value gives us level of methylation and corresponds to log fold
+# change in a way because M-value is the logit transformation of beta values.
+# M=neg means NO methylation and M=pos means 100% methylated.
+# Compare M-values with gene expression (logFC). Make note of where the CpG is present-TSS or body.
+# fit.ctl - is CpG a negative control?
+# p_X1.1 = raw P-values
+# p.BH_X1.1 = Benjamini-Hochberg adjusted p-values
+
+sigCpGs <- top2[top2$p.BH_X1.1 < 0.05,]
+
+write.csv(top2, file = "/Users/sups/Downloads/R_Prog/Pval_GSE111942.csv")
+write.csv(sigCpGs, file = "/Users/sups/Downloads/R_Prog/Filtered_Pval_GSE111942.csv")
 
 # To visualise the effect that the RUVm adjustment is having on the data,
 # using an MDS plot for example, the getAdj function can be used to
@@ -263,23 +272,3 @@ plotMDS(Madj, labels=targets$Sample_Name, col=as.integer(factor(targets$Sample_G
         main="Adjusted: RUV-inverse", gene.selection = "common")
 legend("topleft",legend=c("Healthy","RA"),pch=16,cex=1,col=1:2)
 dev.off()
-
-######## TESTING FOR DIFFERENCES BETWEEN GROUP VARIATIONS. #########
-# We may be interested in CpG sites that are consistently methylated in the
-# normal samples, but variably methylated in the RA samples.
-
-# CALLING FUNCTION "varFit": We are interested in testing for differential
-# variability in the RA versus healthy group. Note that when we specify the
-# coef parameter, which corresponds to the columns of the design matrix to be used
-# for testing differential variability, we need to specify both the intercept and
-# the second column. The ID variable is a nuisance parameter and not used when
-# obtaining the absolute deviations, however it can be included in the linear
-# modelling step. For methylation data, the function will take either a matrix of
-# M-values, β values or a object as input. If β values are supplied, a logit transformation
-# is performed. Note that as a default, varFit uses the robust setting in the
-# limma framework, which requires the use of the statmod package.
-
-fitvar <- varFit(Madj, design = design, coef = c(1,2))
-
-table <- get_p_table(fitvar, coef = 2, number = dim(fitvar)[1])
-write.csv(table, file = "/Users/sups/Downloads/R_Prog/COV/RawPval.csv")
