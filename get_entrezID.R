@@ -61,3 +61,25 @@ names(a)[names(a) == "symbol"] <- "gene_name"
 
 # Write to CSV file
 write.csv(a, file = "/Users/sups/Downloads/R_Prog/RawPval_GSE111942_AnnotatedEntrez.csv")
+
+######## From manifest file #########
+anno <- read.csv("/Users/sups/Downloads/R_Prog/450k_gene_manifest.csv", header = TRUE)
+# then read your p value file as the variable "table"
+anno.keep <- anno[grepl("^cg", anno$Name),]
+anno.keep <- anno.keep[,-1]
+rownames(anno.keep) <- anno.keep$Name
+
+a <- merge(table, anno.keep, by = 0)
+
+names(a)[names(a) == "Row.names"] <- "CpG"
+
+# To remove any column, use a <- a[, -5] where the col no. = 5
+sigCpG <- a[a$p.BH_X1.1 < 0.05,] # all significant CpG
+upCpG <- sigCpG[sigCpG$mean > 0,] # hypermethylated
+downCpG <- sigCpG[sigCpG$mean < 0,] # hypomethylated
+upCpG <- upCpG[order(upCpG[,10], decreasing = TRUE),] # sort in descending order of M-values
+downCpG <- downCpG[order(downCpG[,10], decreasing = TRUE),]
+
+write.csv(upCpG, file = "/Users/sups/Downloads/R_Prog/689_filtered_hyPERmethylation.csv")
+write.csv(downCpG, file = "/Users/sups/Downloads/R_Prog/689_filtered_hyPOmethylation.csv")
+write.csv(a, file = "/Users/sups/Downloads/R_Prog/Pval_GSE42861_AnnotatedUCSC.csv")
