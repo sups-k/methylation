@@ -114,7 +114,7 @@ performQC(mSet, filename = "/Users/sups/Downloads/R_Prog/COV/Boxplot_Intensities
 
 # Only select those intensities that are lesser than the cut-off
 detP <- detectionP(rgSet) # detection p-value represents the confidence measure for the beta value of the sample
-keep <- rowSums(detP < 0.01) == ncol(rgSet) # where 0.01 is the selected p-value
+keep <- rowSums(detP < 0.0001) == ncol(rgSet) # where 0.0001 is the selected p-value
 mSet <- mSet[keep,]
 
 #### Step 4: SWAN normalization ####
