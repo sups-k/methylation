@@ -99,12 +99,12 @@ draw.pairwise.venn(length(names_689), length(names_43), length(names_hypo), cate
 dev.off()
 
 # Unscaled Venn diagram with percentage
-png(filename = "/Users/sups/Downloads/R_Prog/RESULTS/Hypomethylated_Genes_num.png", width = 500, height = 500)
+png(filename = "/Users/sups/Downloads/R_Prog/RESULTS/Hypomethylated_Genes_percent.png", width = 500, height = 500)
 draw.pairwise.venn(length(names_689), length(names_43), length(names_hypo), category = c("GSE42861 Genes", "GSE111942 Genes"), lty = rep("blank", 2), fill = c("light blue", "pink"), alpha = rep(0.5, 2), cat.pos = c(0, 0), cat.dist = rep(0.025, 2), scaled = FALSE, print.mode = "percent")
 dev.off()
 
 # Unscaled Venn diagram with numbers
-png(filename = "/Users/sups/Downloads/R_Prog/RESULTS/Hypomethylated_Genes_percent.png", width = 500, height = 500)
+png(filename = "/Users/sups/Downloads/R_Prog/RESULTS/Hypomethylated_Genes_num.png", width = 500, height = 500)
 draw.pairwise.venn(length(names_689), length(names_43), length(names_hypo), category = c("GSE42861 Genes", "GSE111942 Genes"), lty = rep("blank", 2), fill = c("light blue", "pink"), alpha = rep(0.5, 2), cat.pos = c(0, 0), cat.dist = rep(0.025, 2), scaled = FALSE)
 dev.off()
 
