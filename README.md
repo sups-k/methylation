@@ -49,3 +49,5 @@ Pipeline:
     9) line 292 that starts with "write.csv(....)"
     
   d) IN LINE 116, ENTER THE P-VALUE AS CHOSEN FROM THE PDF IN STEP 2.
+  
+  For entire pipeline, visit https://docs.google.com/document/d/1SQIegq0TmIWoD1OtN66pI_apQJ3qLzUdrfwHtjXe4mQ/edit?usp=sharing
